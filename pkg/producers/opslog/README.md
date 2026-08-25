@@ -67,6 +67,10 @@ prysm local-producer ops-log [flags]
   (efficient mode).
 - `--track-bucket-slo` - Enable low-cardinality bucket GET/LIST SLI metrics for
   Prometheus SLOs.
+- `--bucket-slo-stale-ttl "24h"` - Duration after which idle bucket SLI series
+  are reaped and no longer exposed on `/metrics` (default: `24h`).
+- `--bucket-slo-reap-interval "6h"` - How often the background reaper runs to
+  remove stale series from memory (default: `stale-ttl/4`).
 - `--track-timeout-errors` - Enable tracking of timeout errors (408, 504, 598,
   499) for OSD issue detection.
 - `--track-errors-by-category` - Enable error categorization (timeout,
@@ -278,7 +282,10 @@ prysm local-producer ops-log \
 
 | Variable                                      | Description                                                    |
 |-----------------------------------------------|----------------------------------------------------------------|
-| `TRACK_BUCKET_SLO`                            | Track low-cardinality bucket GET/LIST request SLI metrics for Prometheus SLOs. |
+| `TRACK_BUCKET_SLO`                            | Track low-cardinality per-tenant SLI metrics (protocol/operation/status_class) for Prometheus SLOs. |
+| `BUCKET_SLO_STALE_TTL`                        | Duration after which idle SLI series are reaped (default: `24h`). |
+| `BUCKET_SLO_REAP_INTERVAL`                    | How often the reaper runs to remove stale series (default: `stale-ttl/4`). |
+| `REGION`                                      | Deployment region label for SLI metrics (optional; defaults to `unknown`). |
 
 ## Metrics Collected
 
@@ -382,12 +389,23 @@ prysm local-producer ops-log \
 | `radosgw_requests_duration_per_method`               | Histogram | `method`                                             | Histogram for request latencies aggregated per method (global).   |
 | `radosgw_requests_duration_per_bucket_and_method`    | Histogram | `tenant`, `bucket`, `method`                         | Histogram for request latencies aggregated per bucket and method (all users combined). |
 
-### Bucket SLI Metrics
+### SLI Metrics (per-tenant)
 
-| Metric Name                                   | Type      | Labels                                      | Description                                                        |
-|-----------------------------------------------|-----------|---------------------------------------------|--------------------------------------------------------------------|
-| `radosgw_bucket_sli_requests_total`           | Counter   | `tenant`, `bucket`, `operation`, `status_class` | Low-cardinality bucket SLI request counter for GET/LIST-style operations, labeled by response class such as `2xx` or `5xx`. |
-| `radosgw_bucket_sli_request_duration_seconds` | Histogram | `tenant`, `bucket`, `operation`             | Latency histogram in seconds for bucket GET/LIST SLI operations, intended for Prometheus SLO evaluation. |
+| Metric Name                                   | Type      | Labels                                                      | Description                                                        |
+|-----------------------------------------------|-----------|-------------------------------------------------------------|--------------------------------------------------------------------|
+| `radosgw_request_total`                     | Counter   | `tenant`, `protocol`, `operation`, `status_class`, `region` | Per-tenant SLI request counter for object level data-plane operations (get/put/list/delete/head/multipart), with protocol label (`s3`/`swift`). |
+| `radosgw_request_duration_seconds`          | Histogram | `tenant`, `protocol`, `operation`, `region`                 | Latency histogram (7 fixed buckets: 0.05, 0.1, 0.5, 1, 5, 30, +Inf) for SLO evaluation. |
+| `radosgw_sli_stale_series_reaped_total`     | Counter   | *(none)*                                                    | Total number of stale SLI series that have been reaped by the background reaper. |
+
+#### Stale Series Reaping
+
+The SLI collector uses a custom `prometheus.Collector` with a background reaper
+to prevent unbounded series growth:
+
+- Series that receive no updates for longer than `--bucket-slo-stale-ttl`
+  (default: 24h) are removed from memory and no longer exposed on `/metrics`
+- The reaper runs periodically (default: `stale-ttl/4`) to clean up idle series
+- This ensures deleted or abandoned tenants do not accumulate forever
 
 > **Note**: Histogram metrics do **not** include the `pod` label to reduce
 > cardinality. Each histogram automatically provides `_bucket`, `_count`, and
@@ -663,6 +681,33 @@ prysm local-producer ops-log \
   --track-requests-per-tenant
 ```
 
+### Bucket SLO Tracking
+
+```bash
+# Track per-tenant SLI metrics with default stale reaping (24h TTL)
+prysm local-producer ops-log \
+  --log-file /var/log/ceph/ops-log.log \
+  --prometheus --prometheus-port 8080 \
+  --track-bucket-slo \
+  --region eu-de-1
+
+# Custom TTL for high-traffic clusters (shorter retention, aggressive reaping)
+prysm local-producer ops-log \
+  --log-file /var/log/ceph/ops-log.log \
+  --prometheus --prometheus-port 8080 \
+  --track-bucket-slo \
+  --region eu-de-1 \
+  --bucket-slo-stale-ttl "6h"
+
+# Long retention for infrequently-accessed tenants
+prysm local-producer ops-log \
+  --log-file /var/log/ceph/ops-log.log \
+  --prometheus --prometheus-port 8080 \
+  --track-bucket-slo \
+  --region eu-de-1 \
+  --bucket-slo-stale-ttl "48h"
+```
+
 ## Configuration Best Practices
 
 ### Performance Considerations
@@ -677,6 +722,10 @@ prysm local-producer ops-log \
   multi-tenant environments
 - **Memory efficiency**: Each metric type uses dedicated storage, so only
   enabled metrics consume memory
+- **Bucket SLO cardinality**: With `--track-bucket-slo`, metrics are aggregated
+  per tenant (not per bucket), so cardinality is bounded by tenant count (~500)
+  regardless of bucket count. The stale series reaper automatically removes
+  idle tenant series after `--bucket-slo-stale-ttl`.
 
 ### Recommended Configurations
 

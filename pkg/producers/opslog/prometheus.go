@@ -7,6 +7,7 @@ package opslog
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog/log"
@@ -51,9 +52,10 @@ func initPrometheusSettings(cfg *OpsLogConfig) {
 	// Register latency metrics and set up LatencyObs function
 	registerLatencyMetrics(metricsConfig)
 
-	// Register dedicated low-cardinality SLI metrics for bucket GET/LIST SLOs
+	// Register dedicated low-cardinality SLI metrics for per-tenant SLOs
 	if metricsConfig.TrackBucketSLO {
-		registerSLIMetrics()
+		sliCfg := buildSLICollectorConfig(metricsConfig, cfg.Region)
+		registerSLIMetrics(sliCfg)
 	}
 
 	// Register audit drop counters
@@ -110,4 +112,29 @@ func StartPrometheusServer(port int, cfg *OpsLogConfig) {
 			log.Fatal().Err(err).Msg("error starting prometheus metrics server")
 		}
 	}()
+}
+
+// buildSLICollectorConfig constructs an SLICollectorConfig from MetricsConfig string fields.
+func buildSLICollectorConfig(mc *MetricsConfig, region string) SLICollectorConfig {
+	cfg := SLICollectorConfig{
+		StaleTTL: 24 * time.Hour,
+		Region:   region,
+	}
+
+	if mc.BucketSLOStaleTTL != "" {
+		if d, err := time.ParseDuration(mc.BucketSLOStaleTTL); err == nil && d > 0 {
+			cfg.StaleTTL = d
+		} else {
+			log.Warn().Str("value", mc.BucketSLOStaleTTL).Msg("invalid or non-positive bucket_slo_stale_ttl, using default 24h")
+		}
+	}
+	if mc.BucketSLOReapInterval != "" {
+		if d, err := time.ParseDuration(mc.BucketSLOReapInterval); err == nil && d > 0 {
+			cfg.ReapInterval = d
+		} else {
+			log.Warn().Str("value", mc.BucketSLOReapInterval).Msg("invalid or non-positive bucket_slo_reap_interval, using default stale_ttl/4")
+		}
+	}
+
+	return cfg
 }

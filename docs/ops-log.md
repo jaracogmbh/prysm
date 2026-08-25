@@ -205,11 +205,18 @@ data:
   MAX_LOG_FILE_SIZE: "10"
   PROMETHEUS_PORT: "9090"
   IGNORE_ANONYMOUS_REQUESTS: "true"
-  TRACK_REQUESTS_PER_TENANT: "true"
-  TRACK_LATENCY_PER_METHOD: "true"
-  TRACK_ERRORS_PER_USER: "true"
+  TRACK_REQUESTS_PER_BUCKET: "true"
+  TRACK_REQUESTS_BY_METHOD_PER_BUCKET: "true"
+  TRACK_REQUESTS_BY_OPERATION_PER_BUCKET: "true"
+  TRACK_REQUESTS_BY_STATUS_PER_BUCKET: "true"
   TRACK_BYTES_SENT_PER_BUCKET: "true"
   TRACK_BYTES_RECEIVED_PER_BUCKET: "true"
+  TRACK_LATENCY_PER_BUCKET: "true"
+  TRACK_LATENCY_PER_BUCKET_AND_METHOD: "true"
+  TRACK_ERRORS_PER_BUCKET: "true"
+  TRACK_ERRORS_BY_CATEGORY: "true"
+  TRACK_TIMEOUT_ERRORS: "true"
+  TRACK_BUCKET_SLO: "true"
 EOF
 ```
 
@@ -386,6 +393,9 @@ Set `TRACK_EVERYTHING=true` to turn on all metrics, or pick what you need:
 | Variable | What it tracks |
 |----------|---------------|
 | `TRACK_EVERYTHING` | All of the below (shortcut) |
+| `TRACK_BUCKET_SLO` | Per-tenant SLI metrics (`radosgw_request_total`, `radosgw_request_duration_seconds`) keyed by tenant/protocol/operation/status_class for SLO evaluation |
+| `BUCKET_SLO_STALE_TTL` | Duration after which idle SLI series are reaped (default: `24h`) |
+| `REGION` | Deployment region label for SLI metrics (default: `unknown`) |
 | `TRACK_REQUESTS_DETAILED` | Requests with full labels |
 | `TRACK_REQUESTS_PER_USER` | Requests per user |
 | `TRACK_REQUESTS_PER_BUCKET` | Requests per bucket |
