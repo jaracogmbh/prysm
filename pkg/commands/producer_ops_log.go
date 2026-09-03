@@ -708,7 +708,7 @@ func init() {
 	opsLogCmd.Flags().BoolVar(&opsAuditRequireTenant, "audit-require-tenant", true, "Drop audit events that have neither a project_id nor a domain_id (the audit consumer rejects them)")
 	opsLogCmd.Flags().StringVar(&opsAuditRegion, "audit-region", "", "Static region stamped onto each audit event (the ops log has none); empty = not stamped")
 	opsLogCmd.Flags().StringVar(&opsAuditObserverName, "audit-observer-name", "radosgw", "CADF observer name identifying the storage service in audit events (e.g. radosgw/ceph/swift)")
-	opsLogCmd.Flags().BoolVar(&opsAuditIncludeReads, "audit-include-reads", true, "Audit read operations (get/head/list); default true for object-storage data-access auditing. Set false for mutations-only")
+	opsLogCmd.Flags().BoolVar(&opsAuditIncludeReads, "audit-include-reads", true, "Audit read operations (get_/head_/stat_/list_ prefixed ops); default true for object-storage data-access auditing. Set false for mutations-only")
 	opsLogCmd.Flags().StringVar(&opsAuditSkipBuckets, "audit-skip-buckets", "hermes", "Comma-separated, case-insensitive bucket names excluded from audit (loop prevention for the Hermes audit bucket)")
 	opsLogCmd.Flags().StringVar(&opsAuditAllowDomains, "audit-allow-domains", "", "Comma-separated Keystone domains (ID or name) to audit; if set, only these domains are published. Empty = all domains")
 	opsLogCmd.Flags().StringVar(&opsAuditDenyDomains, "audit-deny-domains", "", "Comma-separated Keystone domains (ID or name) excluded from audit; takes precedence over --audit-allow-domains")

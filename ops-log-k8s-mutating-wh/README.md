@@ -200,7 +200,7 @@ stringData:
 | `AUDIT_REQUIRE_TENANT`    | Drop events lacking a project_id/domain_id (counted) | `true`                           |
 | `AUDIT_OBSERVER_NAME`     | CADF observer name (storage service)                 | `radosgw`                        |
 | `AUDIT_REGION`            | Static region stamped on events (empty = off)        | _empty_                          |
-| `AUDIT_INCLUDE_READS`     | Audit reads (get/head/list) too; false = mutations-only | `true`                        |
+| `AUDIT_INCLUDE_READS`     | Audit reads (get_/head_/stat_/list_ prefixed) too; false = mutations-only | `true`                        |
 | `AUDIT_SKIP_BUCKETS`      | Buckets excluded from audit (comma-list, loop prevention) | `hermes`                    |
 | `AUDIT_ALLOW_DOMAINS`     | Keystone domains (ID or name, comma-list) to audit; only these published when set | _empty_ |
 | `AUDIT_DENY_DOMAINS`      | Keystone domains (ID or name, comma-list) excluded; precedes allow-list | _empty_          |

@@ -89,7 +89,7 @@ prysm local-producer ops-log [flags]
   in audit events (default: `radosgw`).
 - `--audit-region` - Static region stamped onto each audit event (the ops log
   has none; default: empty = not stamped).
-- `--audit-include-reads` - Audit read operations (get/head/list) in addition
+- `--audit-include-reads` - Audit read operations (get_/head_/stat_/list_ prefixed) in addition
   to mutations (default: true, for object-storage data-access auditing). Set
   false for mutations-only.
 - `--audit-skip-buckets` - Comma-separated, case-insensitive bucket names
@@ -179,7 +179,7 @@ prysm local-producer ops-log \
 | `AUDIT_REQUIRE_TENANT`       | Drop events without a project_id/domain_id (default true). |
 | `AUDIT_OBSERVER_NAME`        | CADF observer (storage service) name (default radosgw). |
 | `AUDIT_REGION`               | Static region stamped on events (empty = off).  |
-| `AUDIT_INCLUDE_READS`        | Audit reads (get/head/list) too (default true). |
+| `AUDIT_INCLUDE_READS`        | Audit reads (get_/head_/stat_/list_ prefixed) too (default true). |
 | `AUDIT_SKIP_BUCKETS`         | Buckets excluded from audit, comma-list (default `hermes`). |
 | `AUDIT_ALLOW_DOMAINS`        | Keystone domains (ID or name, comma-list) to audit; only these are published when set. |
 | `AUDIT_DENY_DOMAINS`         | Keystone domains (ID or name, comma-list) excluded; precedes `AUDIT_ALLOW_DOMAINS`. |
@@ -467,7 +467,7 @@ Audit emission is gated before publishing. Each drop is counted (not silent) in
   the audit trail to specific tenants and reduce RabbitMQ volume.
 - **`no_tenant`** — events without a `project_id`/`domain_id` (see Tenant
   Enforcement above).
-- **`read`** — read operations (get/head/list) when `AUDIT_INCLUDE_READS=false`.
+- **`read`** — read operations (get_/head_/stat_/list_ prefixed) when `AUDIT_INCLUDE_READS=false`.
   Reads are audited by default (object-storage data-access events); set the flag
   false for a mutations-only trail.
 
@@ -554,16 +554,20 @@ Each audit event includes:
 |-------------------|----------------|--------------------------------|
 | `list_buckets`    | `read/list`    | List all buckets              |
 | `list_bucket`     | `read/list`    | List objects in bucket        |
-| `get_obj`         | `read`         | Download object               |
-| `get_bucket_info` | `read`         | Get bucket metadata           |
-| `head_obj`        | `read`         | Get object metadata           |
-| `head_bucket`     | `read`         | Get bucket headers            |
+| `get_obj`         | `read`         | Download object (also HEAD on object) |
+| `get_bucket_info` | `read`         | Get bucket metadata (admin API) |
+| `stat_bucket`     | `read`         | HEAD bucket                   |
+| `stat_account`    | `read`         | HEAD account (Swift)          |
 | `put_obj`         | `create`       | Upload new object             |
+| `post_obj`        | `update`       | Swift form POST / S3 browser upload |
 | `create_bucket`   | `create`       | Create new bucket             |
+| `bulk_upload`     | `create`       | Swift bulk upload (tar)       |
+| `restore_obj`     | `create`       | S3 RestoreObject              |
 | `delete_obj`      | `delete`       | Delete object                 |
 | `delete_bucket`   | `delete`       | Delete bucket                 |
+| `multi_object_delete` | `delete`   | S3 multi-object delete        |
+| `bulk_delete`     | `delete`       | Swift bulk delete             |
 | `copy_obj`        | `update/copy`  | Copy object                   |
-| `post_obj`        | `update`       | Update object metadata        |
 
 ### Configuration
 
