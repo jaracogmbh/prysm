@@ -337,9 +337,9 @@ Each S3 operation produces a CADF event with:
 | RadosGW operation | CADF action |
 |-------------------|-------------|
 | `list_buckets`, `list_bucket` | `read/list` |
-| `get_obj`, `get_bucket_info`, `head_obj`, `head_bucket` | `read` |
-| `put_obj`, `create_bucket` | `create` |
-| `delete_obj`, `delete_bucket` | `delete` |
+| `get_obj`, `get_bucket_info`, `stat_bucket`, `stat_account` | `read` |
+| `put_obj`, `create_bucket`, `bulk_upload`, `restore_obj` | `create` |
+| `delete_obj`, `delete_bucket`, `multi_object_delete`, `bulk_delete` | `delete` |
 | `copy_obj` | `update/copy` |
 | `post_obj` | `update` |
 
@@ -374,7 +374,7 @@ Each S3 operation produces a CADF event with:
 | `AUDIT_REQUIRE_TENANT` | Drop events lacking `project_id`/`domain_id` (counted in `prysm_audit_events_dropped_total`) | `true` |
 | `AUDIT_OBSERVER_NAME` | CADF observer name (storage service) | `radosgw` |
 | `AUDIT_REGION` | Static region stamped on events (empty = off) | |
-| `AUDIT_INCLUDE_READS` | Audit reads (get/head/list) too; false = mutations-only | `true` |
+| `AUDIT_INCLUDE_READS` | Audit reads (get_/head_/stat_/list_ prefixed) too; false = mutations-only | `true` |
 | `AUDIT_SKIP_BUCKETS` | Buckets excluded from audit (comma-list, loop prevention) | `hermes` |
 | `AUDIT_ALLOW_DOMAINS` | Keystone domains (ID or name, comma-list) to audit; if set, only these are published (counted as `domain_filtered`) | |
 | `AUDIT_DENY_DOMAINS` | Keystone domains (ID or name, comma-list) excluded from audit; takes precedence over `AUDIT_ALLOW_DOMAINS` | |

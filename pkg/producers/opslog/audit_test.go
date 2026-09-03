@@ -177,19 +177,22 @@ func TestBuildObserver(t *testing.T) {
 	})
 }
 
-// TestIsReadOperation verifies read classification (get/head/list) used by the
-// optional read filter. Reads are audited by default for object storage, but
-// can be excluded (mutations-only) via AUDIT_INCLUDE_READS=false.
+// TestIsReadOperation verifies read classification (get_/head_/stat_/list_
+// prefixed operations) used by the optional read filter. Reads are audited by
+// default for object storage, but can be excluded (mutations-only) via
+// AUDIT_INCLUDE_READS=false.
 func TestIsReadOperation(t *testing.T) {
 	reads := []string{
-		"get_obj", "head_obj", "get_bucket_info", "head_bucket",
+		"get_obj", "stat_bucket", "stat_account", "get_bucket_info",
+		"head_synthetic", // exercises the head_ prefix branch (no real RGW op uses this prefix)
 		"list_buckets", "list_bucket", "get_acls", "get_bucket_policy",
 		"get_lifecycle", "get_obj_tags",
 	}
 	mutations := []string{
 		"put_obj", "create_bucket", "delete_obj", "delete_bucket", "copy_obj",
 		"post_obj", "put_acls", "init_multipart", "complete_multipart",
-		"abort_multipart",
+		"abort_multipart", "multi_object_delete", "bulk_delete",
+		"bulk_upload", "restore_obj",
 	}
 
 	for _, op := range reads {
@@ -197,6 +200,54 @@ func TestIsReadOperation(t *testing.T) {
 	}
 	for _, op := range mutations {
 		assert.False(t, isReadOperation(op), "expected %q to be a mutation", op)
+	}
+}
+
+// TestMapOperationToAction verifies the RGW operation → CADF action mapping.
+// Every case in mapOperationToAction is exercised, plus the unknown fallback.
+func TestMapOperationToAction(t *testing.T) {
+	testCases := []struct {
+		operation string
+		expected  cadf.Action
+	}{
+		// read/list
+		{"list_buckets", "read/list"},
+		{"list_bucket", "read/list"},
+
+		// read
+		{"get_obj", "read"},
+		{"get_bucket_info", "read"},
+		{"stat_bucket", "read"},
+		{"stat_account", "read"},
+
+		// create
+		{"put_obj", "create"},
+		{"create_bucket", "create"},
+		{"bulk_upload", "create"},
+		{"restore_obj", "create"},
+
+		// delete
+		{"delete_obj", "delete"},
+		{"delete_bucket", "delete"},
+		{"multi_object_delete", "delete"},
+		{"bulk_delete", "delete"},
+
+		// update/copy
+		{"copy_obj", "update/copy"},
+
+		// update
+		{"post_obj", "update"},
+
+		// unknown fallback
+		{"some_unknown_op", cadf.UnknownAction},
+		{"init_multipart", cadf.UnknownAction},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.operation, func(t *testing.T) {
+			assert.Equal(t, tc.expected, mapOperationToAction(tc.operation),
+				"operation %q should map to %q", tc.operation, tc.expected)
+		})
 	}
 }
 
