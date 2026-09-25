@@ -224,6 +224,7 @@ func TestMapOperationToAction(t *testing.T) {
 		{"put_obj", "create"},
 		{"create_bucket", "create"},
 		{"bulk_upload", "create"},
+		{"post_obj", "create"}, // S3 POST upload: Ceph emits ObjectCreatedPost
 
 		// delete
 		{"delete_obj", "delete"},
@@ -236,9 +237,6 @@ func TestMapOperationToAction(t *testing.T) {
 
 		// update/copy
 		{"copy_obj", "update/copy"},
-
-		// update
-		{"post_obj", "update"},
 
 		// unknown fallback
 		{"some_unknown_op", cadf.UnknownAction},

@@ -559,7 +559,7 @@ Each audit event includes:
 | `stat_bucket`     | `read`         | HEAD bucket                   |
 | `stat_account`    | `read`         | HEAD account (Swift)          |
 | `put_obj`         | `create`       | Upload new object             |
-| `post_obj`        | `update`       | Swift form POST / S3 browser upload |
+| `post_obj`        | `create`       | S3 POST upload / Swift form POST (Ceph: ObjectCreatedPost) |
 | `create_bucket`   | `create`       | Create new bucket             |
 | `bulk_upload`     | `create`       | Swift bulk upload (tar)       |
 | `delete_obj`      | `delete`       | Delete object                 |

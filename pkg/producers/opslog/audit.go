@@ -322,7 +322,10 @@ func mapOperationToAction(operation string) cadf.Action {
 		return "read/list"
 	case "get_obj", "get_bucket_info", "stat_bucket", "stat_account":
 		return "read"
-	case "put_obj", "create_bucket", "bulk_upload":
+	case "put_obj", "create_bucket", "bulk_upload", "post_obj":
+		// post_obj (S3 POST upload / Swift form POST) creates an object the
+		// same way put_obj does: Ceph emits ObjectCreatedPost for it and
+		// authorizes it as s3:PutObject.
 		return "create"
 	case "delete_obj", "delete_bucket", "multi_object_delete", "bulk_delete":
 		return "delete"
@@ -333,8 +336,6 @@ func mapOperationToAction(operation string) cadf.Action {
 		return cadf.RestoreAction
 	case "copy_obj":
 		return "update/copy"
-	case "post_obj":
-		return "update"
 	default:
 		// Read-prefix fallback, consistent with isReadOperation: unmapped
 		// get_/head_/stat_/list_ operations — RGW subresource reads such as
