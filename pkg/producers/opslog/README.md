@@ -562,11 +562,11 @@ Each audit event includes:
 | `post_obj`        | `update`       | Swift form POST / S3 browser upload |
 | `create_bucket`   | `create`       | Create new bucket             |
 | `bulk_upload`     | `create`       | Swift bulk upload (tar)       |
-| `restore_obj`     | `create`       | S3 RestoreObject              |
 | `delete_obj`      | `delete`       | Delete object                 |
 | `delete_bucket`   | `delete`       | Delete bucket                 |
 | `multi_object_delete` | `delete`   | S3 multi-object delete        |
 | `bulk_delete`     | `delete`       | Swift bulk delete             |
+| `restore_obj`     | `restore`      | S3 RestoreObject (restore archived object) |
 | `copy_obj`        | `update/copy`  | Copy object                   |
 
 ### Configuration

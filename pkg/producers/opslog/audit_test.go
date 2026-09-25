@@ -224,13 +224,15 @@ func TestMapOperationToAction(t *testing.T) {
 		{"put_obj", "create"},
 		{"create_bucket", "create"},
 		{"bulk_upload", "create"},
-		{"restore_obj", "create"},
 
 		// delete
 		{"delete_obj", "delete"},
 		{"delete_bucket", "delete"},
 		{"multi_object_delete", "delete"},
 		{"bulk_delete", "delete"},
+
+		// restore (dedicated CADF action for S3 RestoreObject)
+		{"restore_obj", cadf.RestoreAction},
 
 		// update/copy
 		{"copy_obj", "update/copy"},
@@ -249,6 +251,28 @@ func TestMapOperationToAction(t *testing.T) {
 				"operation %q should map to %q", tc.operation, tc.expected)
 		})
 	}
+}
+
+// TestToAuditEventRestoreAction verifies that an S3 RestoreObject ops-log entry
+// produces a CADF audit event carrying the dedicated restore action (not
+// create): restore_obj initiates restoration of an archived object, and the
+// correct action must survive the full event-building path, not just the
+// operation-name mapping.
+func TestToAuditEventRestoreAction(t *testing.T) {
+	opLog := &S3OperationLog{
+		Bucket:     "archive-bucket",
+		Object:     "photos/archive.zip",
+		Time:       "2026-09-25T20:04:05.012345Z",
+		User:       "archiver$087d63b6c7a54c8f9e0e1a3b2c4d5e6f",
+		Operation:  "restore_obj",
+		URI:        "POST /archive-bucket/photos/archive.zip?restore HTTP/1.1",
+		HTTPStatus: "202", // RestoreObject returns 202 Accepted
+	}
+
+	event, err := opLog.ToAuditEvent("")
+	require.NoError(t, err)
+	assert.Equal(t, cadf.RestoreAction, event.Action,
+		"S3 RestoreObject must map to the dedicated CADF restore action")
 }
 
 // TestIsSkippedBucket verifies the loop-prevention filter: operations on the

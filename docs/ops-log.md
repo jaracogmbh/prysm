@@ -338,8 +338,9 @@ Each S3 operation produces a CADF event with:
 |-------------------|-------------|
 | `list_buckets`, `list_bucket` | `read/list` |
 | `get_obj`, `get_bucket_info`, `stat_bucket`, `stat_account` | `read` |
-| `put_obj`, `create_bucket`, `bulk_upload`, `restore_obj` | `create` |
+| `put_obj`, `create_bucket`, `bulk_upload` | `create` |
 | `delete_obj`, `delete_bucket`, `multi_object_delete`, `bulk_delete` | `delete` |
+| `restore_obj` | `restore` |
 | `copy_obj` | `update/copy` |
 | `post_obj` | `update` |
 

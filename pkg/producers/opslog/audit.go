@@ -313,10 +313,15 @@ func mapOperationToAction(operation string) cadf.Action {
 		return "read/list"
 	case "get_obj", "get_bucket_info", "stat_bucket", "stat_account":
 		return "read"
-	case "put_obj", "create_bucket", "bulk_upload", "restore_obj":
+	case "put_obj", "create_bucket", "bulk_upload":
 		return "create"
 	case "delete_obj", "delete_bucket", "multi_object_delete", "bulk_delete":
 		return "delete"
+	case "restore_obj":
+		// S3 RestoreObject initiates restoration of an archived object (e.g.
+		// from GLACIER); CADF defines a dedicated restore action for this,
+		// distinct from create.
+		return cadf.RestoreAction
 	case "copy_obj":
 		return "update/copy"
 	case "post_obj":
