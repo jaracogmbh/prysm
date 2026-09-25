@@ -253,6 +253,51 @@ func TestMapOperationToAction(t *testing.T) {
 	}
 }
 
+// TestMapOperationToActionReadFallback verifies the read-prefix fallback in
+// mapOperationToAction: operations recognized as reads by isReadOperation but
+// not explicitly mapped (RGW subresource reads like get_acls, get_lifecycle,
+// get_bucket_policy, get_obj_tags, and the multipart listings) must map to a
+// read action — never cadf.UnknownAction — because reads are audited by
+// default. Unmapped list operations get the more specific read/list, and
+// non-reads keep falling through to unknown.
+func TestMapOperationToActionReadFallback(t *testing.T) {
+	reads := []string{
+		// explicitly mapped core reads (the fallback must agree with the switch)
+		"get_obj", "get_bucket_info", "stat_bucket", "stat_account",
+		// unmapped subresource reads (the review's examples, plus the long tail)
+		"get_acls", "get_cors", "get_lifecycle", "get_bucket_policy",
+		"get_bucket_policy_status", "get_bucket_tags", "get_obj_tags",
+		"get_obj_retention", "get_obj_legal_hold", "get_bucket_versioning",
+		"get_bucket_website", "get_bucket_location", "get_bucket_logging",
+		"get_bucket_encryption", "get_bucket_object_lock", "get_request_payment",
+		"get_bucket_public_access_block", "get_bucket_replication",
+		"get_obj_layout", "get_attrs", "get_bucket_meta_search",
+		"get_health_check", "get_policy",
+	}
+	for _, op := range reads {
+		assert.Equal(t, cadf.Action("read"), mapOperationToAction(op),
+			"expected read operation %q to map to read", op)
+	}
+
+	// Unmapped list operations fall back to the more specific read/list.
+	lists := []string{"list_multipart", "list_bucket_multiparts"}
+	for _, op := range lists {
+		assert.Equal(t, cadf.Action("read/list"), mapOperationToAction(op),
+			"expected unmapped list operation %q to map to read/list", op)
+	}
+
+	// Non-read operations keep falling through to the unknown action.
+	nonReads := []string{
+		"init_multipart", "complete_multipart", "abort_multipart",
+		"put_acls", "put_lifecycle", "delete_lifecycle", "put_bucket_policy",
+		"put_obj_tags", "options_cors", "some_unknown_op",
+	}
+	for _, op := range nonReads {
+		assert.Equal(t, cadf.UnknownAction, mapOperationToAction(op),
+			"expected non-read %q to stay unknown", op)
+	}
+}
+
 // TestToAuditEventRestoreAction verifies that an S3 RestoreObject ops-log entry
 // produces a CADF audit event carrying the dedicated restore action (not
 // create): restore_obj initiates restoration of an archived object, and the

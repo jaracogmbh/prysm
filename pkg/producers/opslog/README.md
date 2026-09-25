@@ -568,6 +568,12 @@ Each audit event includes:
 | `bulk_delete`     | `delete`       | Swift bulk delete             |
 | `restore_obj`     | `restore`      | S3 RestoreObject (restore archived object) |
 | `copy_obj`        | `update/copy`  | Copy object                   |
+| other `get_*`/`head_*`/`stat_*` ops | `read` | Subresource reads: ACLs, CORS, lifecycle, policy, tags, retention, versioning, … |
+| other `list_*` ops | `read/list`  | Multipart listings (`list_multipart`, `list_bucket_multiparts`) |
+
+Unmapped read-prefixed operations fall back to `read` (`read/list` for
+listings), consistent with the read classification used by
+`AUDIT_INCLUDE_READS`; all other unmapped operations map to `unknown`.
 
 ### Configuration
 

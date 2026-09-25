@@ -343,6 +343,14 @@ Each S3 operation produces a CADF event with:
 | `restore_obj` | `restore` |
 | `copy_obj` | `update/copy` |
 | `post_obj` | `update` |
+| any other `get_*` / `head_*` / `stat_*` operation | `read` |
+| any other `list_*` operation | `read/list` |
+
+Unmapped read-prefixed operations fall back to a read action (RGW subresource
+reads such as `get_acls`, `get_cors`, `get_lifecycle`, `get_bucket_policy`,
+`get_obj_tags`, object-lock/retention reads, and the multipart listings),
+consistent with the read classification used by `AUDIT_INCLUDE_READS`; all
+other unmapped operations are published with the `unknown` action.
 
 ## Environment variables
 
