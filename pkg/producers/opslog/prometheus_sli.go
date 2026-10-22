@@ -156,10 +156,11 @@ func (c *sliCollector) Collect(ch chan<- prometheus.Metric) {
 		}
 
 		// Build cumulative bucket map for prometheus.NewConstHistogram
-		buckets := make(map[float64]uint64, 6) // 6 finite bounds (exclude +Inf)
+		buckets := make(map[float64]uint64, 7)
 		for i := 0; i < 6; i++ {
 			buckets[sliHistogramBounds[i]] = uint64(state.buckets[i])
 		}
+		buckets[math.Inf(1)] = state.count
 
 		m, err := prometheus.NewConstHistogram(
 			c.histogramDesc,
