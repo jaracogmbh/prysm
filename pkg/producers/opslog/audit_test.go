@@ -177,19 +177,22 @@ func TestBuildObserver(t *testing.T) {
 	})
 }
 
-// TestIsReadOperation verifies read classification (get/head/list) used by the
-// optional read filter. Reads are audited by default for object storage, but
-// can be excluded (mutations-only) via AUDIT_INCLUDE_READS=false.
+// TestIsReadOperation verifies read classification (get_/head_/stat_/list_
+// prefixed operations) used by the optional read filter. Reads are audited by
+// default for object storage, but can be excluded (mutations-only) via
+// AUDIT_INCLUDE_READS=false.
 func TestIsReadOperation(t *testing.T) {
 	reads := []string{
-		"get_obj", "head_obj", "get_bucket_info", "head_bucket",
+		"get_obj", "stat_bucket", "stat_account", "get_bucket_info",
+		"head_synthetic", // exercises the head_ prefix branch (no real RGW op uses this prefix)
 		"list_buckets", "list_bucket", "get_acls", "get_bucket_policy",
 		"get_lifecycle", "get_obj_tags",
 	}
 	mutations := []string{
 		"put_obj", "create_bucket", "delete_obj", "delete_bucket", "copy_obj",
 		"post_obj", "put_acls", "init_multipart", "complete_multipart",
-		"abort_multipart",
+		"abort_multipart", "multi_object_delete", "bulk_delete",
+		"bulk_upload", "restore_obj",
 	}
 
 	for _, op := range reads {
@@ -198,6 +201,121 @@ func TestIsReadOperation(t *testing.T) {
 	for _, op := range mutations {
 		assert.False(t, isReadOperation(op), "expected %q to be a mutation", op)
 	}
+}
+
+// TestMapOperationToAction verifies the RGW operation → CADF action mapping.
+// Every case in mapOperationToAction is exercised, plus the unknown fallback.
+func TestMapOperationToAction(t *testing.T) {
+	testCases := []struct {
+		operation string
+		expected  cadf.Action
+	}{
+		// read/list
+		{"list_buckets", "read/list"},
+		{"list_bucket", "read/list"},
+
+		// read
+		{"get_obj", "read"},
+		{"get_bucket_info", "read"},
+		{"stat_bucket", "read"},
+		{"stat_account", "read"},
+
+		// create
+		{"put_obj", "create"},
+		{"create_bucket", "create"},
+		{"bulk_upload", "create"},
+		{"post_obj", "create"}, // S3 POST upload: Ceph emits ObjectCreatedPost
+
+		// delete
+		{"delete_obj", "delete"},
+		{"delete_bucket", "delete"},
+		{"multi_object_delete", "delete"},
+		{"bulk_delete", "delete"},
+
+		// restore (dedicated CADF action for S3 RestoreObject)
+		{"restore_obj", cadf.RestoreAction},
+
+		// update/copy
+		{"copy_obj", "update/copy"},
+
+		// unknown fallback
+		{"some_unknown_op", cadf.UnknownAction},
+		{"init_multipart", cadf.UnknownAction},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.operation, func(t *testing.T) {
+			assert.Equal(t, tc.expected, mapOperationToAction(tc.operation),
+				"operation %q should map to %q", tc.operation, tc.expected)
+		})
+	}
+}
+
+// TestMapOperationToActionReadFallback verifies the read-prefix fallback in
+// mapOperationToAction: operations recognized as reads by isReadOperation but
+// not explicitly mapped (RGW subresource reads like get_acls, get_lifecycle,
+// get_bucket_policy, get_obj_tags, and the multipart listings) must map to a
+// read action — never cadf.UnknownAction — because reads are audited by
+// default. Unmapped list operations get the more specific read/list, and
+// non-reads keep falling through to unknown.
+func TestMapOperationToActionReadFallback(t *testing.T) {
+	reads := []string{
+		// explicitly mapped core reads (the fallback must agree with the switch)
+		"get_obj", "get_bucket_info", "stat_bucket", "stat_account",
+		// unmapped subresource reads (the review's examples, plus the long tail)
+		"get_acls", "get_cors", "get_lifecycle", "get_bucket_policy",
+		"get_bucket_policy_status", "get_bucket_tags", "get_obj_tags",
+		"get_obj_retention", "get_obj_legal_hold", "get_bucket_versioning",
+		"get_bucket_website", "get_bucket_location", "get_bucket_logging",
+		"get_bucket_encryption", "get_bucket_object_lock", "get_request_payment",
+		"get_bucket_public_access_block", "get_bucket_replication",
+		"get_obj_layout", "get_attrs", "get_bucket_meta_search",
+		"get_health_check", "get_policy",
+	}
+	for _, op := range reads {
+		assert.Equal(t, cadf.Action("read"), mapOperationToAction(op),
+			"expected read operation %q to map to read", op)
+	}
+
+	// Unmapped list operations fall back to the more specific read/list.
+	lists := []string{"list_multipart", "list_bucket_multiparts"}
+	for _, op := range lists {
+		assert.Equal(t, cadf.Action("read/list"), mapOperationToAction(op),
+			"expected unmapped list operation %q to map to read/list", op)
+	}
+
+	// Non-read operations keep falling through to the unknown action.
+	nonReads := []string{
+		"init_multipart", "complete_multipart", "abort_multipart",
+		"put_acls", "put_lifecycle", "delete_lifecycle", "put_bucket_policy",
+		"put_obj_tags", "options_cors", "some_unknown_op",
+	}
+	for _, op := range nonReads {
+		assert.Equal(t, cadf.UnknownAction, mapOperationToAction(op),
+			"expected non-read %q to stay unknown", op)
+	}
+}
+
+// TestToAuditEventRestoreAction verifies that an S3 RestoreObject ops-log entry
+// produces a CADF audit event carrying the dedicated restore action (not
+// create): restore_obj initiates restoration of an archived object, and the
+// correct action must survive the full event-building path, not just the
+// operation-name mapping.
+func TestToAuditEventRestoreAction(t *testing.T) {
+	opLog := &S3OperationLog{
+		Bucket:     "archive-bucket",
+		Object:     "photos/archive.zip",
+		Time:       "2026-09-25T20:04:05.012345Z",
+		User:       "archiver$087d63b6c7a54c8f9e0e1a3b2c4d5e6f",
+		Operation:  "restore_obj",
+		URI:        "POST /archive-bucket/photos/archive.zip?restore HTTP/1.1",
+		HTTPStatus: "202", // RestoreObject returns 202 Accepted
+	}
+
+	event, err := opLog.ToAuditEvent("")
+	require.NoError(t, err)
+	assert.Equal(t, cadf.RestoreAction, event.Action,
+		"S3 RestoreObject must map to the dedicated CADF restore action")
 }
 
 // TestIsSkippedBucket verifies the loop-prevention filter: operations on the

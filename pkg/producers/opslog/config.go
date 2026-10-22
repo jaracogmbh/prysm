@@ -27,9 +27,10 @@ type AuditSinkConfig struct {
 	// ObserverName is the CADF observer name identifying the storage service in
 	// emitted events (e.g. radosgw/ceph/swift). Empty defaults to "radosgw".
 	ObserverName string `mapstructure:"observer_name"`
-	// IncludeReads controls whether read operations (get/head/list) are audited.
-	// Default true: object-storage audit includes data-access events (reads) as
-	// well as mutations (cf. GCS data-access logs). Set false for mutations-only.
+	// IncludeReads controls whether read operations (get_/head_/stat_/list_) are
+	// audited. Default true: object-storage audit includes data-access events
+	// (reads) as well as mutations (cf. GCS data-access logs). Set false for
+	// mutations-only.
 	IncludeReads bool `mapstructure:"include_reads"`
 	// SkipBuckets is a comma-separated, case-insensitive list of bucket names
 	// excluded from audit. It breaks the Hermes loop: Hermes writes audit events

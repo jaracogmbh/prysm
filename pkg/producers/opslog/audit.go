@@ -281,32 +281,74 @@ func isDomainAudited(opLog *S3OperationLog, cfg AuditSinkConfig) bool {
 	return true
 }
 
-// isReadOperation reports whether an RGW operation is a read (get/head/list).
-// Read classification is by operation name and is independent of the CADF
-// action mapping, so it is robust regardless of how actions are finalized.
-// Reads are excluded from the customer audit trail by default (mutations-only).
+// isReadOperation reports whether an RGW operation is a read
+// (get_/head_/stat_/list_ prefixed operations).
+//
+// Read classification is by operation name prefix. mapOperationToAction's
+// fallback delegates to this function, keeping the read filter and the
+// published CADF action consistent for prefix-recognized reads.
+//
+// By default reads ARE included in the audit trail (--audit-include-reads
+// defaults to true). Set AUDIT_INCLUDE_READS=false for mutations-only auditing.
+//
+// Note: RGW logs HEAD-on-bucket as "stat_bucket" and HEAD-on-account as
+// "stat_account" (not "head_bucket"/"head_account"). The stat_ prefix is
+// included alongside head_ for correctness.
 func isReadOperation(operation string) bool {
 	return strings.HasPrefix(operation, "get_") ||
 		strings.HasPrefix(operation, "head_") ||
+		strings.HasPrefix(operation, "stat_") ||
 		strings.HasPrefix(operation, "list_")
 }
 
 // mapOperationToAction converts RadosGW operation names to CADF actions.
+//
+// Operation names are the exact name() return values from RGW's C++ RGWOp
+// subclasses in rgw_op.h. Notable quirks:
+//   - HEAD on an object is handled by RGWGetObj → logs as "get_obj", not "head_obj".
+//   - HEAD on a bucket is RGWStatBucket → "stat_bucket".
+//   - HEAD on an account (Swift) is RGWStatAccount → "stat_account".
+//
+// Unmapped operations fall back to a read classification consistent with
+// isReadOperation: get_/head_/stat_ prefixed operations map to read, list_
+// prefixed operations to the more specific read/list. Reads are audited by
+// default, so valid reads (RGW subresource reads such as get_acls,
+// get_lifecycle, get_bucket_policy, get_obj_tags, and the multipart listings)
+// must not be published with the unknown action. All other unmapped operations
+// map to cadf.UnknownAction.
 func mapOperationToAction(operation string) cadf.Action {
 	switch operation {
 	case "list_buckets", "list_bucket":
 		return "read/list"
-	case "get_obj", "get_bucket_info", "head_obj", "head_bucket":
+	case "get_obj", "get_bucket_info", "stat_bucket", "stat_account":
 		return "read"
-	case "put_obj", "create_bucket":
+	case "put_obj", "create_bucket", "bulk_upload", "post_obj":
+		// post_obj (S3 POST upload / Swift form POST) creates an object the
+		// same way put_obj does: Ceph emits ObjectCreatedPost for it and
+		// authorizes it as s3:PutObject.
 		return "create"
-	case "delete_obj", "delete_bucket":
+	case "delete_obj", "delete_bucket", "multi_object_delete", "bulk_delete":
 		return "delete"
+	case "restore_obj":
+		// S3 RestoreObject initiates restoration of an archived object (e.g.
+		// from GLACIER); CADF defines a dedicated restore action for this,
+		// distinct from create.
+		return cadf.RestoreAction
 	case "copy_obj":
 		return "update/copy"
-	case "post_obj":
-		return "update"
 	default:
+		// Read-prefix fallback, consistent with isReadOperation: unmapped
+		// get_/head_/stat_/list_ operations — RGW subresource reads such as
+		// get_acls, get_lifecycle, get_bucket_policy, get_obj_tags, and the
+		// multipart listings — are reads, and reads are audited by default, so
+		// they must not be published with the unknown action. List operations
+		// get the more specific read/list.
+		if isReadOperation(operation) {
+			if strings.HasPrefix(operation, "list_") {
+				return "read/list"
+			}
+			return "read"
+		}
 		log.Debug().Str("operation", operation).Msg("Unknown operation, using 'unknown' action")
 		return cadf.UnknownAction
 	}
