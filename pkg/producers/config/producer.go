@@ -13,6 +13,18 @@ import (
 	"github.com/cobaltcore-dev/prysm/pkg/producers/resourceusage"
 )
 
+// ProducerHandlerFunc is a function that starts a producer from config.
+type ProducerHandlerFunc func(producer ProducerConfig, globalConfig GlobalConfig)
+
+// producerHandlers holds registered producer handlers (used for build-tag-gated producers).
+var producerHandlers = map[string]ProducerHandlerFunc{}
+
+// registerProducerHandler registers a handler for a producer type.
+// Called from init() in build-tag-gated files.
+func registerProducerHandler(producerType string, handler ProducerHandlerFunc) {
+	producerHandlers[producerType] = handler
+}
+
 func StartProducers(producer ProducerConfig, globalConfig GlobalConfig, wg *sync.WaitGroup) {
 	defer wg.Done()
 
@@ -76,6 +88,10 @@ func StartProducers(producer ProducerConfig, globalConfig GlobalConfig, wg *sync
 	// 	}
 	// 	quotausagemonitor.StartMonitoring(settings)
 	default:
-		log.Warn().Msgf("unknown producer type: %s", producer.Type)
+		if handler, ok := producerHandlers[producer.Type]; ok {
+			handler(producer, globalConfig)
+		} else {
+			log.Warn().Msgf("unknown producer type: %s", producer.Type)
+		}
 	}
 }

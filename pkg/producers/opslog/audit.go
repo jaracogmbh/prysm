@@ -292,7 +292,7 @@ func isDomainAudited(opLog *S3OperationLog, cfg AuditSinkConfig) bool {
 // defaults to true). Set AUDIT_INCLUDE_READS=false for mutations-only auditing.
 //
 // Note: RGW logs HEAD-on-bucket as "stat_bucket" and HEAD-on-account as
-// "stat_account" (not "head_bucket"/"head_account"). The stat_ prefix is
+// "stat_account". The stat_ prefix is
 // included alongside head_ for correctness.
 func isReadOperation(operation string) bool {
 	return strings.HasPrefix(operation, "get_") ||
@@ -305,7 +305,7 @@ func isReadOperation(operation string) bool {
 //
 // Operation names are the exact name() return values from RGW's C++ RGWOp
 // subclasses in rgw_op.h. Notable quirks:
-//   - HEAD on an object is handled by RGWGetObj → logs as "get_obj", not "head_obj".
+//   - HEAD on an object is handled by RGWGetObj → logs as "get_obj".
 //   - HEAD on a bucket is RGWStatBucket → "stat_bucket".
 //   - HEAD on an account (Swift) is RGWStatAccount → "stat_account".
 //

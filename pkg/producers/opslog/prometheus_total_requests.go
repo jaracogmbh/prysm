@@ -132,7 +132,7 @@ func publishRequestCounters(diffMetrics *Metrics, cfg OpsLogConfig) {
 				return true
 			}
 
-			bucket, user, method, httpStatus := parts[0], parts[1], parts[2], parts[3]
+			user, bucket, method, httpStatus := parts[0], parts[1], parts[2], parts[3]
 			_, tenantStr := extractUserAndTenant(user)
 			rqCount := float64(requestCount.(*atomic.Uint64).Load())
 
