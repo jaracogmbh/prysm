@@ -273,8 +273,19 @@ func observeSLI(logEntry S3OperationLog, tenant string) {
 	}
 
 	sliOperation, ok := classifySLIOperation(logEntry.Operation)
-	if tenant == "none" || !ok {
+	if !ok {
 		return
+	}
+
+	// On clusters without Keystone (pure S3 / Local auth, e.g. Rook), the
+	// ops-log user carries no "user$tenant" suffix, so extractUserAndTenant
+	// resolves every request to tenant="none" and the SLI would stay empty
+	// forever. Fall back to the (non-anonymous) S3 user as the tenant: the
+	// anonymous filter (IGNORE_ANONYMOUS_REQUESTS) already drops anonymous
+	// traffic before metrics are updated, so the fallback cannot pollute the
+	// SLI with anonymous series.
+	if tenant == "none" {
+		tenant = logEntry.User
 	}
 
 	protocol := detectProtocol(logEntry.URI)
